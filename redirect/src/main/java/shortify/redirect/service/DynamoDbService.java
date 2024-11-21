@@ -20,7 +20,13 @@ public class DynamoDbService {
     private final String tableName = "ShortenedUrls";
 
     public DynamoDbService() {
-        this.dynamoDbClient = AmazonDynamoDBClientBuilder.standard().withRegion(Regions.US_EAST_2).build();
+        this.dynamoDbClient = createDynamoDbClient();
+    }
+
+    protected AmazonDynamoDB createDynamoDbClient() {
+        return AmazonDynamoDBClientBuilder.standard()
+                .withRegion(Regions.US_EAST_2)
+                .build();
     }
 
     public String getUrl(String code) {
