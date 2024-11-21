@@ -1,87 +1,82 @@
 package shortify.redirect.service;
 
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.model.AttributeValue;
-import com.amazonaws.services.dynamodbv2.model.GetItemRequest;
-import com.amazonaws.services.dynamodbv2.model.GetItemResult;
-import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.*;
 
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
+import com.amazonaws.services.dynamodbv2.model.GetItemRequest;
+import com.amazonaws.services.dynamodbv2.model.GetItemResult;
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 class DynamoDbServiceTest {
 
-    @Mock
-    private AmazonDynamoDB dynamoDbClient;
-
     private DynamoDbService dynamoDbService;
+    private AmazonDynamoDB mockDynamoDbClient;
 
     @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
-        // Injetamos manualmente o mock do cliente
-        dynamoDbService = new DynamoDbService() {
-            @Override
-            protected AmazonDynamoDB createDynamoDbClient() {
-                return dynamoDbClient;
-            }
-        };
+    void setUp() throws Exception {
+        mockDynamoDbClient = mock(AmazonDynamoDB.class);
+        dynamoDbService = new DynamoDbService();
+
+        Field dynamoDbClientField = DynamoDbService.class.getDeclaredField("dynamoDbClient");
+        dynamoDbClientField.setAccessible(true);
+        dynamoDbClientField.set(dynamoDbService, mockDynamoDbClient);
     }
 
     @Test
-    void whenValidCode_thenReturnUrl() {
-        // Arrange
-        String code = "abc123";
-        String expectedUrl = "https://www.example.com";
+    void testGetUrl_Success() {
+        String code = "testCode";
+        String expectedUrl = "http://example.com";
 
         Map<String, AttributeValue> item = new HashMap<>();
-        item.put("url", new AttributeValue().withS(expectedUrl));
+        item.put("url", new AttributeValue(expectedUrl));
 
         GetItemResult mockResult = new GetItemResult().withItem(item);
-        when(dynamoDbClient.getItem(any(GetItemRequest.class))).thenReturn(mockResult);
+        when(mockDynamoDbClient.getItem(any(GetItemRequest.class))).thenReturn(mockResult);
 
-        // Act
         String result = dynamoDbService.getUrl(code);
 
-        // Assert
         assertEquals(expectedUrl, result);
+        verify(mockDynamoDbClient).getItem(any(GetItemRequest.class));
     }
 
     @Test
-    void whenDynamoDbThrowsException_thenThrowRuntimeException() {
-        // Arrange
-        String code = "error";
-        when(dynamoDbClient.getItem(any(GetItemRequest.class)))
-                .thenThrow(new AmazonDynamoDBException("DynamoDB error"));
-
-        // Act & Assert
-        Exception exception = assertThrows(RuntimeException.class, () -> {
-            dynamoDbService.getUrl(code);
-        });
-
-        assertTrue(exception.getMessage().contains("Failed to fetch URL from DynamoDB"));
-    }
-
-    @Test
-    void whenItemNotFound_thenThrowException() {
-        // Arrange
-        String code = "nonexistent";
+    void testGetUrl_NotFound() {
+        String code = "nonexistentCode";
         GetItemResult mockResult = new GetItemResult().withItem(null);
-        when(dynamoDbClient.getItem(any(GetItemRequest.class))).thenReturn(mockResult);
+        when(mockDynamoDbClient.getItem(any(GetItemRequest.class))).thenReturn(mockResult);
 
-        // Act & Assert
-        Exception exception = assertThrows(RuntimeException.class, () -> {
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             dynamoDbService.getUrl(code);
         });
 
-        assertNotNull(exception);
+        String expectedMessage = "URL not found for code";
+        assertTrue(exception.getMessage().contains(expectedMessage),
+                "A mensagem esperada não foi encontrada. Mensagem atual: " + exception.getMessage());
+    }
+
+    @Test
+    void testGetUrl_ThrowsException() {
+        String code = "testCode";
+        AmazonDynamoDBException dynamoDbException = new AmazonDynamoDBException("Mocked exception");
+        when(mockDynamoDbClient.getItem(any(GetItemRequest.class)))
+                .thenThrow(dynamoDbException);
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            dynamoDbService.getUrl(code);
+        });
+
+        String expectedMessage = "Failed to get URL from DynamoDB";
+        assertTrue(exception.getMessage().contains(expectedMessage),
+                "A mensagem esperada não foi encontrada. Mensagem atual: " + exception.getMessage());
     }
 }

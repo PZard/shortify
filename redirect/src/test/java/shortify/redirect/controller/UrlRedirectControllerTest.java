@@ -2,57 +2,47 @@ package shortify.redirect.controller;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import shortify.redirect.service.DynamoDbService;
-import jakarta.servlet.http.HttpServletResponse;
 
-import java.io.IOException;
-
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
 
 class UrlRedirectControllerTest {
 
     @Mock
     private DynamoDbService dynamoDbService;
 
-    @Mock
-    private HttpServletResponse response;
-
-    @InjectMocks
     private UrlRedirectController controller;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        controller = new UrlRedirectController(dynamoDbService);
     }
 
     @Test
-    void whenValidCode_thenRedirectSuccessfully() throws IOException {
-        // Arrange
-        String code = "abc123";
-        String expectedUrl = "https://www.example.com";
+    void whenValidUrl_thenRedirect() {
+        String code = "validCode";
+        String expectedUrl = "http://example.com";
         when(dynamoDbService.getUrl(code)).thenReturn(expectedUrl);
 
-        // Act
-        controller.redirect(code, response);
+        ResponseEntity<Void> response = controller.redirectUrl(code);
 
-        // Assert
-        verify(response).sendRedirect(expectedUrl);
+        assertEquals(HttpStatus.FOUND, response.getStatusCode());
+        assertEquals(expectedUrl, response.getHeaders().getLocation().toString());
     }
 
     @Test
-    void whenServiceThrowsException_thenPropagateException() {
-        // Arrange
-        String code = "invalid";
-        when(dynamoDbService.getUrl(code)).thenThrow(new RuntimeException("URL not found"));
+    void whenDynamoDbError_thenReturn500() {
+        String code = "error";
+        when(dynamoDbService.getUrl(code)).thenThrow(new RuntimeException("DynamoDB error"));
 
-        // Act & Assert
-        try {
-            controller.redirect(code, response);
-        } catch (Exception e) {
-            verify(response, never()).sendRedirect(anyString());
-        }
+        ResponseEntity<Void> response = controller.redirectUrl(code);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
     }
 }
