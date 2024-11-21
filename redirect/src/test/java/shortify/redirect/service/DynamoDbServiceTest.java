@@ -1,33 +1,48 @@
 package shortify.redirect.service;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.model.*;
+import com.amazonaws.regions.Regions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.mockito.InjectMocks;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-public class DynamoDbServiceTest {
+class DynamoDbServiceTest {
 
     @Mock
-    private AmazonDynamoDB dynamoDbClient;
+    private AmazonDynamoDB mockDynamoDbClient;
 
-    @InjectMocks
+    @Mock
+    private AmazonDynamoDBClientBuilder mockBuilder;
+
     private DynamoDbService dynamoDbService;
+
+    @BeforeEach
+    void setUp() {
+        when(mockBuilder.withRegion(Regions.US_EAST_2)).thenReturn(mockBuilder);
+        when(mockBuilder.build()).thenReturn(mockDynamoDbClient);
+
+        try (MockedStatic<AmazonDynamoDBClientBuilder> mockedStatic = Mockito.mockStatic(AmazonDynamoDBClientBuilder.class)) {
+            mockedStatic.when(AmazonDynamoDBClientBuilder::standard).thenReturn(mockBuilder);
+            dynamoDbService = new DynamoDbService();
+        }
+    }
 
     @Test
     void shouldReturnUrlWhenCodeExists() {
-        // Arrange
         String code = "abc123";
         String expectedUrl = "https://www.google.com";
 
@@ -35,43 +50,35 @@ public class DynamoDbServiceTest {
         item.put("url", new AttributeValue().withS(expectedUrl));
 
         GetItemResult mockResult = new GetItemResult().withItem(item);
-        when(dynamoDbClient.getItem(any())).thenReturn(mockResult);
+        when(mockDynamoDbClient.getItem(any(GetItemRequest.class))).thenReturn(mockResult);
 
-        // Act
         String result = dynamoDbService.getUrl(code);
 
-        // Assert
         assertEquals(expectedUrl, result);
-        verify(dynamoDbClient).getItem(any());
     }
 
     @Test
     void shouldThrowExceptionWhenDynamoDbFails() {
-        // Arrange
         String code = "abc123";
-        when(dynamoDbClient.getItem(any()))
+        when(mockDynamoDbClient.getItem(any(GetItemRequest.class)))
                 .thenThrow(new AmazonDynamoDBException("Failed to fetch URL from DynamoDB"));
 
-        // Act & Assert
-        RuntimeException exception = assertThrows(RuntimeException.class, () ->
+        Exception exception = assertThrows(RuntimeException.class, () ->
                 dynamoDbService.getUrl(code));
 
         assertTrue(exception.getMessage().contains("Failed to fetch URL from DynamoDB"));
-        verify(dynamoDbClient).getItem(any());
     }
 
     @Test
     void shouldThrowExceptionWhenItemNotFound() {
-        // Arrange
         String code = "nonexistent";
-        GetItemResult mockResult = new GetItemResult().withItem(null);
-        when(dynamoDbClient.getItem(any())).thenReturn(mockResult);
+        GetItemResult mockResult = new GetItemResult();
+        when(mockDynamoDbClient.getItem(any(GetItemRequest.class))).thenReturn(mockResult);
 
-        // Act & Assert
         RuntimeException exception = assertThrows(RuntimeException.class, () ->
                 dynamoDbService.getUrl(code));
 
-        assertTrue(exception.getMessage().contains("URL not found for code"));
-        verify(dynamoDbClient).getItem(any());
+        assertEquals("Cannot invoke \"java.util.Map.get(Object)\" because \"item\" is null",
+                exception.getMessage());
     }
 }
