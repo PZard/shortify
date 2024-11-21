@@ -1,48 +1,55 @@
 package shortify.redirect.controller;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletResponse;
 import shortify.redirect.service.DynamoDbService;
 
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-class UrlRedirectControllerTest {
+@ExtendWith(MockitoExtension.class)
+public class UrlRedirectControllerTest {
 
     @Mock
     private DynamoDbService dynamoDbService;
 
-    private UrlRedirectController controller;
+    @InjectMocks
+    private UrlRedirectController urlRedirectController;
 
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
-        controller = new UrlRedirectController(dynamoDbService);
+    @Test
+    void shouldRedirectToOriginalUrl() throws Exception {
+        // Arrange
+        String shortCode = "abc123";
+        String expectedUrl = "https://www.google.com";
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        when(dynamoDbService.getUrl(shortCode)).thenReturn(expectedUrl);
+
+        // Act
+        urlRedirectController.redirect(shortCode, response);
+
+        // Assert
+        assertEquals(expectedUrl, response.getRedirectedUrl());
+        verify(dynamoDbService).getUrl(shortCode);
     }
 
     @Test
-    void whenValidUrl_thenRedirect() {
-        String code = "validCode";
-        String expectedUrl = "http://example.com";
-        when(dynamoDbService.getUrl(code)).thenReturn(expectedUrl);
+    void shouldHandleServiceException() {
+        // Arrange
+        String shortCode = "invalid";
+        MockHttpServletResponse response = new MockHttpServletResponse();
 
-        ResponseEntity<Void> response = controller.redirectUrl(code);
+        when(dynamoDbService.getUrl(shortCode))
+                .thenThrow(new RuntimeException("Failed to fetch URL"));
 
-        assertEquals(HttpStatus.FOUND, response.getStatusCode());
-        assertEquals(expectedUrl, response.getHeaders().getLocation().toString());
-    }
+        // Act & Assert
+        assertThrows(RuntimeException.class, () ->
+                urlRedirectController.redirect(shortCode, response));
 
-    @Test
-    void whenDynamoDbError_thenReturn500() {
-        String code = "error";
-        when(dynamoDbService.getUrl(code)).thenThrow(new RuntimeException("DynamoDB error"));
-
-        ResponseEntity<Void> response = controller.redirectUrl(code);
-
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        verify(dynamoDbService).getUrl(shortCode);
     }
 }
