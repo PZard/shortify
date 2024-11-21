@@ -22,31 +22,26 @@ public class UrlRedirectControllerTest {
 
     @Test
     void shouldRedirectToOriginalUrl() throws Exception {
-        // Arrange
         String shortCode = "abc123";
         String expectedUrl = "https://www.google.com";
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         when(dynamoDbService.getUrl(shortCode)).thenReturn(expectedUrl);
 
-        // Act
         urlRedirectController.redirect(shortCode, response);
 
-        // Assert
         assertEquals(expectedUrl, response.getRedirectedUrl());
         verify(dynamoDbService).getUrl(shortCode);
     }
 
     @Test
     void shouldHandleServiceException() {
-        // Arrange
         String shortCode = "invalid";
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         when(dynamoDbService.getUrl(shortCode))
                 .thenThrow(new RuntimeException("Failed to fetch URL"));
 
-        // Act & Assert
         assertThrows(RuntimeException.class, () ->
                 urlRedirectController.redirect(shortCode, response));
 
