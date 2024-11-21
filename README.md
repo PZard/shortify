@@ -100,7 +100,7 @@ Both modules use DynamoDB for data persistence. Make sure to configure the follo
 3. Port configurations if needed
 
 # Project Dependencies
-* Spring Boot
+* Spring Boot/Cloud
 * AWS SDK for DynamoDB
 * JUnit for testing
 * Maven for build management
