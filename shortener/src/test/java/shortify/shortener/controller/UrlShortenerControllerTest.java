@@ -38,7 +38,7 @@ public class UrlShortenerControllerTest {
                 .content(objectMapper.writeValueAsString(requestBody)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.url").exists())
-                .andExpect(jsonPath("$.url").value(org.hamcrest.Matchers.startsWith("https://short.ly/")));
+                .andExpect(jsonPath("$.url").value(org.hamcrest.Matchers.startsWith("https://98e2g80fk0.execute-api.us-east-2.amazonaws.com/prod/")));
                 verify(dynamoDbService, times(1)).saveUrl(anyString(), eq(originalUrl));
     }
 }
