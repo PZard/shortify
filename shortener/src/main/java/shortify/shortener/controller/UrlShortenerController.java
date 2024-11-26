@@ -29,7 +29,7 @@ public class UrlShortenerController {
 
         dynamoDbService.saveUrl(shortenedCode, originalUrl);
         
-		String shortenedUrl = "https://short.ly/" + shortenedCode;
+		String shortenedUrl = "https://98e2g80fk0.execute-api.us-east-2.amazonaws.com/" + shortenedCode;
 		UrlBody responseBody = new UrlBody();
 		responseBody.url = shortenedUrl;
 	
